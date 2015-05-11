@@ -1,0 +1,7 @@
+babel -w src/main.es6 -o lib/main.js &
+
+python -m SimpleHTTPServer &
+
+open http://localhost:8000
+
+
