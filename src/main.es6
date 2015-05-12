@@ -12,6 +12,7 @@ document.querySelector('input[type="file"]').addEventListener('change', (e) => {
     var reader = new FileReader();
     reader.onload = function(e) {
         initSound(e.target.result);
+        console.log("Sample rate: ", audioCtx.sampleRate);
     };
     reader.readAsArrayBuffer(e.target.files[0]);
 }, false);
@@ -31,7 +32,7 @@ function stopSound() {
 }
 
 function playSound() {
-    source = audioCtx.createBufferSource(); // Global so we can .noteOff() later.
+    source = audioCtx.createBufferSource();
     source.buffer = audioBuffer;
     source.loop = false;
     source.connect(analyser);
@@ -49,7 +50,7 @@ let SIZE = 4000;
 canvas.width = SIZE;
 canvas.height = SIZE;
 
-analyser.fftSize = 2048;
+analyser.fftSize = 512;
 var bufferLength = analyser.frequencyBinCount;
 var dataTimeArray = new Uint8Array(bufferLength);
 var dataFreqArray = new Uint8Array(bufferLength);
@@ -59,7 +60,9 @@ var sliceWidth = 10.0 / bufferLength;
 var x = canvas.width / 2, y = canvas.height / 2;
 
 function draw() {
-    var drawVisual = requestAnimationFrame(draw);
+    if (source) {
+        var drawVisual = requestAnimationFrame(draw);
+    }
 
     analyser.getByteFrequencyData(dataFreqArray);
     analyser.getByteTimeDomainData(dataTimeArray);
@@ -75,39 +78,41 @@ function visualizationGoodCircle(ctx, dataTime, dataFreq) {
     let SCALING = 5;
     var r, theta;
 
-    var angle = 2 * Math.PI * audioCtx.currentTime / (3.5 * 60);
+    var angle = 2 * Math.PI * audioCtx.currentTime / (3.6 * 60);
+
+    var avgTime = Utils.sum(dataTime) / bufferLength;
+    var avgFreq = Utils.sum(dataFreq) / bufferLength;
+    // console.log(sumTime / bufferLength, sumFreq / bufferLength);
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'hsla(' + angle * 360 / (2 * Math.PI) + ', 80%, 50%, 0.03)';
+    ctx.strokeStyle = 'hsla(' + (avgFreq * avgTime) / 100 + ', 80%, 50%, 0.1)';
 
     ctx.beginPath();
 
+    var lastX = SIZE / 2, lastY = SIZE / 2;
     for (var i = 0; i < bufferLength; i++) {
         var vt = dataTime[i] / 256.0 * SCALING;
         var vf = dataFreq[i] / 256.0 * SCALING;
 
-        if (vt !== 0) {
-            x += vt - SCALING / 2;
-        }
+        var freq = 100 + i * audioCtx.sampleRate / bufferLength / 20000 * SIZE / 5;
 
-        if (vf !== 0) {
-            y += vf - SCALING / 2;
-        }
+        r = freq;
+        theta = vf / (SCALING * SCALING);
 
-        r = Math.sqrt(x * x + y * y) * 1.5;
-        theta = vt * vf / (SCALING * SCALING);
+        x = SIZE / 2 + r * Math.cos(angle - theta);
+        y = SIZE / 2 + r * Math.sin(angle - theta);
 
-        if (i === 0) {
-            ctx.moveTo(SIZE / 2 + r * Math.cos(angle - theta), SIZE / 2 + r * Math.sin(angle - theta));
+        if (i === 0 || vf < 0.01) {
+            ctx.moveTo(x, y);
         } else {
-            ctx.lineTo(SIZE / 2 + r * Math.cos(angle - theta), SIZE / 2 + r * Math.sin(angle - theta));
+            ctx.quadraticCurveTo(lastX, lastY, x, y);
         }
+
+        lastX = x;
+        lastY = y;
     }
 
     ctx.stroke();
-
-    x = 0.2 * SIZE;
-    y = 0.2 * SIZE;
 }
 
 
@@ -157,7 +162,7 @@ function visualizationWeirdCircle(ctx, dataTime, dataFreq) {
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.02)';
 
-    angle = Math.PI * audioCtx.currentTime / 60;
+    var angle = Math.PI * audioCtx.currentTime / 60;
 
     ctx.beginPath();
 
@@ -184,4 +189,16 @@ function visualizationWeirdCircle(ctx, dataTime, dataFreq) {
 
     x = 0.375 * SIZE;
     y = 0.375 * SIZE;
+}
+
+
+class Utils {
+    static sum(arr) {
+        let s = 0;
+        for (let el of arr) {
+            s += el;
+        }
+
+        return s;
+    }
 }

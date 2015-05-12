@@ -2,15 +2,34 @@
 <html>
 <head>
     <title>Music Viz</title>
+    <style type="text/css">
+        body {
+            color: white;
+            background-color: black;
+        }
+
+        .canvas-container {
+            width: 100%;
+        }
+
+        canvas {
+            width: 70%;
+            margin: 0 auto;
+        }
+    </style>
 </head>
 <body>
 
-<input type="file" id="input">
+<div class="controls-container">
+    <input type="file" id="input">
+    <button onclick="playSound()">Play</button>
+    <button onclick="stopSound()">Stop</button>
+</div>
 
-<canvas id="canvas">You should get a better browser if you see this!</canvas>
+<div class="canvas-container">
+    <canvas id="canvas">You should get a better browser if you see this!</canvas>
+</div>
 
-<button onclick="playSound()">playSound</button>
-<button onclick="stopSound()">stopSound</button>
 
 </body>
 
