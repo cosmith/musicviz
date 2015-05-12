@@ -6,7 +6,7 @@ analyser.minDecibels = -90;
 analyser.maxDecibels = -10;
 analyser.smoothingTimeConstant = 0.4;
 
-var source, audioBuffer;
+var source, audioBuffer, STOP = true;
 
 document.querySelector('input[type="file"]').addEventListener('change', (e) => {
     var reader = new FileReader();
@@ -28,6 +28,7 @@ function initSound(arrayBuffer) {
 function stopSound() {
     if (source) {
        source.stop();
+       STOP = true;
     }
 }
 
@@ -38,6 +39,8 @@ function playSound() {
     source.connect(analyser);
     analyser.connect(audioCtx.destination);
     source.start();
+
+    STOP = false;
     draw();
 }
 
@@ -45,36 +48,137 @@ function playSound() {
 var canvas = document.getElementById("canvas");
 var ctx = canvas.getContext("2d");
 
-let SIZE = 4000;
+var link = document.createElement('a');
+link.innerHTML = 'download image';
+link.addEventListener('click', function(ev) {
+    link.href = canvas.toDataURL();
+    link.download = "image.png";
+}, false);
+document.body.appendChild(link);
+
+let SIZE = 6000;
 
 canvas.width = SIZE;
 canvas.height = SIZE;
 
-analyser.fftSize = 512;
+analyser.fftSize = 2048;
 var bufferLength = analyser.frequencyBinCount;
 var dataTimeArray = new Uint8Array(bufferLength);
 var dataFreqArray = new Uint8Array(bufferLength);
 var sliceWidth = 10.0 / bufferLength;
 
-// draw an oscilloscope of the current audio source
 var x = canvas.width / 2, y = canvas.height / 2;
+var FREQ_ARRAY = [];
+
 
 function draw() {
-    if (source) {
+    if (!STOP) {
         var drawVisual = requestAnimationFrame(draw);
     }
 
     analyser.getByteFrequencyData(dataFreqArray);
     analyser.getByteTimeDomainData(dataTimeArray);
 
-    visualizationGoodCircle(ctx, dataTimeArray, dataFreqArray);
+    visualizationNarratives(ctx, dataTimeArray, dataFreqArray);
+    // visualizationSpectrogram(ctx, dataTimeArray, dataFreqArray);
+    // visualizationGoodCircle(ctx, dataTimeArray, dataFreqArray);
     // visualizationWeirdCircle(ctx, dataTimeArray, dataFreqArray);
     // visualizationHorizontalLines(ctx, dataTimeArray, dataFreqArray);
 };
 
 
+function visualizationNarratives(ctx, dataTime, dataFreq) {
+    for (var i = Math.floor(bufferLength * 0.01); i < bufferLength * 0.4; i++) {
+        FREQ_ARRAY[i].draw(dataFreq[i], i);
+    }
+}
+
+
+class Frequence {
+    constructor(number) {
+        this.x = 3000 + number * 5;
+        this.y = SIZE / 2;
+
+        this.length = 0.3;
+        this.rotation = Math.PI/2;
+    }
+
+    draw(value, number) {
+        let angle = value / 40 + this.rotation;// + Math.PI / (bufferLength * 0.3) * number + this.rotation;
+        let dx = this.length * Math.cos(angle);
+        let dy = this.length * Math.sin(angle);
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = value < 130 ? 'hsla(0, 80%, 0%, 0.1)' : 'hsla(50, 80%, 50%, 0.1)';
+
+        if (true) {
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + dx, this.y + dy);
+            ctx.stroke();
+        }
+
+        this.x += dx;
+        this.y += dy;
+    }
+
+    static init() {
+        var freqs = [];
+        for (var i = Math.floor(bufferLength * 0.01); i < bufferLength * 0.4; i++) {
+            FREQ_ARRAY[i] = new Frequence(i);
+        }
+    }
+}
+
+Frequence.init();
+
+function visualizationSpectrogram(ctx, dataTime, dataFreq) {
+    let SCALING = 5,
+        startX = 100,
+        startY = 100;
+
+    var theta;
+
+    var avgTime = Utils.sum(dataTime) / bufferLength;
+    var avgFreq = Utils.sum(dataFreq) / bufferLength;
+
+    var lastX = startX,
+        lastY = startY;
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'hsla(' + (avgFreq * avgTime) / 100 + ', 80%, 50%, 0.1)';
+
+    ctx.beginPath();
+    for (var i = 0; i < bufferLength; i++) {
+        var vt = dataTime[i] / 256.0 * SCALING;
+        var vf = dataFreq[i] / 256.0 * SCALING;
+
+        var freq = 100 + i * audioCtx.sampleRate / bufferLength / 20000 * SIZE / 2;
+
+        theta = vf * 10;
+
+        x = freq;
+        y = audioCtx.currentTime * 10 + theta;
+
+        if (i === 0 || vf < 0.01) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.quadraticCurveTo(lastX, lastY, x, y);
+        }
+
+        lastX = x;
+        lastY = y;
+    }
+
+    ctx.stroke();
+}
+
+
+
 
 function visualizationGoodCircle(ctx, dataTime, dataFreq) {
+    analyser.fftSize = 512;
+
     let SCALING = 5;
     var r, theta;
 
